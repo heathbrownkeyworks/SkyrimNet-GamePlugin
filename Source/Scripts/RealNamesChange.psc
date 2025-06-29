@@ -13,7 +13,6 @@ GlobalVariable Property RNCreature Auto
 GlobalVariable Property RNOther Auto
 
 GlobalVariable Property RNDoLastNames Auto
-
 GlobalVariable Property RNQuestName Auto
 
 Faction Property FacBandit Auto
@@ -32,777 +31,143 @@ Faction Property FacCreature Auto
 FormList Property UniquesRename Auto
 FormList Property NonUniqueNoRename Auto
 
+; Cached faction arrays for performance
+Faction[] factionArray
+GlobalVariable[] settingArray
+Int numFactions
+
+Event OnInit()
+    InitializeFactionArrays()
+EndEvent
+
+Function InitializeFactionArrays()
+    numFactions = 10
+    factionArray = new Faction[10]
+    settingArray = new GlobalVariable[10]
+    
+    ; Initialize faction/setting pairs
+    factionArray[0] = FacBandit
+    settingArray[0] = RNBandit
+    
+    factionArray[1] = FacForsworn
+    settingArray[1] = RNForsworn
+    
+    factionArray[2] = FacGuard
+    settingArray[2] = RNGuard
+    
+    factionArray[3] = FacStendarr
+    settingArray[3] = RNStendarr
+    
+    factionArray[4] = FacThalmor
+    settingArray[4] = RNThalmor
+    
+    factionArray[5] = FacVampire
+    settingArray[5] = RNVampire
+    
+    factionArray[6] = FacDragon
+    settingArray[6] = RNDragon
+    
+    factionArray[7] = FacDragonPriest
+    settingArray[7] = RNDragonPriest
+    
+    factionArray[8] = FacDaedra
+    settingArray[8] = RNDaedra
+    
+    factionArray[9] = FacCreature
+    settingArray[9] = RNCreature
+EndFunction
+
 Function ChangeName(Actor akTarget, String newFirstName, String newLastName)
+    if !akTarget
+        Return
+    EndIf
 
-	ActorBase TargetRef = akTarget.GetLeveledActorBase()
-	ActorBase TargetBase = akTarget.GetActorBase()
+    ActorBase TargetRef = akTarget.GetLeveledActorBase()
+    ActorBase TargetBase = akTarget.GetActorBase()
 
-	Debug.Trace("RealNamesExtended: UniquesRename.Find(TargetRef) = " + UniquesRename.Find(TargetBase))
-	Debug.Trace("RealNamesExtended: NonUniqueNoRename.Find(TargetRef) = " + NonUniqueNoRename.Find(TargetBase))
+    Debug.Trace("RealNamesExtended: UniquesRename.Find(TargetRef) = " + UniquesRename.Find(TargetBase))
+    Debug.Trace("RealNamesExtended: NonUniqueNoRename.Find(TargetRef) = " + NonUniqueNoRename.Find(TargetBase))
 
-	Bool ShouldRename
-	if TargetRef.IsUnique()
-		If UniquesRename.Find(TargetBase) >= 0
-			; Target is Unique, but is on the list to rename anyway
-			; Debug.Trace("RealNamesExtended: Will Rename")
-			ShouldRename = True
-		Else
-			; Target is unique, and not on the list to rename anyway
-			; Debug.Trace("RealNamesExtended: Won't Rename")
-			ShouldRename = False
-		EndIf
-	Else ; Target is not unique
-		If NonUniqueNoRename.Find(TargetBase) >= 0
-			; Target is not unique, but is on the list to not rename
-			; Debug.Trace("RealNamesExtended: Won't Rename")
-			ShouldRename = False
-		Else
-			; Target is not unique, and is not on the list to not rename
-			; Debug.Trace("RealNamesExtended: Will Rename")
-			ShouldRename = True
-		EndIf
-	EndIf
+    Bool ShouldRename = DetermineIfShouldRename(TargetRef, TargetBase)
+    
+    If !ShouldRename
+        Return
+    EndIf
 
-	If !ShouldRename
-		; Debug.Notification("Target is a unique NPC. You cannot change its name!")
-		Return
-	EndIf
-
-	If RNQuestName.GetValue() as int == 0
-		QuestNameFalse(akTarget, newFirstName, newLastName)
-	Else
-		QuestNameTrue(akTarget, newFirstName, newLastName)
-	EndIf
-
+    Bool useQuestName = (RNQuestName.GetValue() as int == 1)
+    ProcessActorRename(akTarget, newFirstName, newLastName, useQuestName)
 EndFunction
 
-
-
-Function QuestNameFalse(Actor akTarget, String newFirstName, String newLastName)
-
-	ActorBase TargetRef = akTarget.GetLeveledActorBase()
-	; ; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacBandit) = " + akTarget.IsInFaction(FacBandit))
-	IF akTarget.IsInFaction(FacBandit)
-		Int RNBanditGV = RNBandit.GetValue() as int
-		If RNBanditGV == 0
-			Return
-		ElseIf RNBanditGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNBanditGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-	; ; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacForsworn) = " + akTarget.IsInFaction(FacForsworn))
-	; ; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacHagraven) = " + akTarget.IsInFaction(FacHagraven))
-	IF akTarget.IsInFaction(FacForsworn) || akTarget.IsInFaction(FacHagraven)
-		Int RNForswornGV = RNForsworn.GetValue() as int
-		If RNForswornGV == 0
-			Return
-		ElseIf RNForswornGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNForswornGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacGuard) = " + akTarget.IsInFaction(FacGuard))
-	IF akTarget.IsInFaction(FacGuard)
-		Int RNGuardGV = RNGuard.GetValue() as int
-		If RNGuardGV == 0
-			Return
-		ElseIf RNGuardGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNGuardGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacStendarr) = " + akTarget.IsInFaction(FacStendarr))
-	IF akTarget.IsInFaction(FacStendarr)
-		Int RNStendarrGV = RNStendarr.GetValue() as int
-		If RNStendarrGV == 0
-			Return
-		ElseIf RNStendarrGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNStendarrGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacThalmor) = " + akTarget.IsInFaction(FacThalmor))
-	IF akTarget.IsInFaction(FacThalmor)
-		Int RNThalmorGV = RNThalmor.GetValue() as int
-		If RNThalmorGV == 0
-			Return
-		ElseIf RNThalmorGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNThalmorGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacVampire) = " + akTarget.IsInFaction(FacVampire))
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacVampireThrall) = " + akTarget.IsInFaction(FacVampireThrall))
-	IF akTarget.IsInFaction(FacVampire) || akTarget.IsInFaction(FacVampireThrall)
-		Int RNVampireGV = RNVampire.GetValue() as int
-		If RNVampireGV == 0
-			Return
-		ElseIf RNVampireGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNVampireGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacDragon) = " + akTarget.IsInFaction(FacDragon))
-	IF akTarget.IsInFaction(FacDragon)
-		Int RNDragonGV = RNDragon.GetValue() as int
-		; Debug.Trace("RNDragonGV = " + RNDragonGV)
-		If RNDragonGV == 0
-			Return
-		ElseIf RNDragonGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNDragonGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacDragonPriest) = " + akTarget.IsInFaction(FacDragonPriest))
-	IF akTarget.IsInFaction(FacDragonPriest)
-		Int RNDragonPriestGV = RNDragonPriest.GetValue() as int
-		; Debug.Trace("RNDragonPriestGV = " + RNDragonPriestGV)
-		If RNDragonPriestGV == 0
-			Return
-		ElseIf RNDragonPriestGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNDragonPriestGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacDaedra) = " + akTarget.IsInFaction(FacDaedra))
-	IF akTarget.IsInFaction(FacDaedra)
-		Int RNDaedraGV = RNDaedra.GetValue() as int
-		; Debug.Trace("RNDaedraGV = " + RNDaedraGV)
-		If RNDaedraGV == 0
-			Return
-		ElseIf RNDaedraGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNDaedraGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-
-	; Debug.Trace("RealNamesExtended: akTarget.IsInFaction(FacCreature) = " + akTarget.IsInFaction(FacCreature))
-	IF akTarget.IsInFaction(FacCreature)
-		Int RNCreatureGV = RNCreature.GetValue() as int
-		; Debug.Trace("RNCreatureGV = " + RNCreatureGV)
-		If RNCreatureGV == 0
-			Return
-		ElseIf RNCreatureGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNCreatureGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-	Endif
-
-	; Debug.Trace("RealNamesExtended: Target falls under 'Other'")
-		Int RNOtherGV = RNOther.GetValue() as int
-		If RNOtherGV == 0
-			Return
-		ElseIf RNOtherGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, False)
-			Return
-		ElseIf RNOtherGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, False)
-			Return
-		Endif	
-
+Bool Function DetermineIfShouldRename(ActorBase TargetRef, ActorBase TargetBase)
+    If TargetRef.IsUnique()
+        Return UniquesRename.Find(TargetBase) >= 0
+    Else
+        Return NonUniqueNoRename.Find(TargetBase) < 0
+    EndIf
 EndFunction
 
+Function ProcessActorRename(Actor akTarget, String newFirstName, String newLastName, Bool useQuestName)
+    ; Initialize arrays if not done yet
+    if !factionArray || factionArray.Length == 0
+        InitializeFactionArrays()
+    EndIf
+    
+    ; Check each faction in order
+    Int i = 0
+    While i < numFactions
+        if ShouldProcessFaction(akTarget, i)
+            ProcessFactionRename(akTarget, settingArray[i], newFirstName, newLastName, useQuestName)
+            Return
+        EndIf
+        i += 1
+    EndWhile
+    
+    ; Default to "Other" category
+    ProcessFactionRename(akTarget, RNOther, newFirstName, newLastName, useQuestName)
+EndFunction
 
+Bool Function ShouldProcessFaction(Actor akTarget, Int factionIndex)
+    ; Special cases for multi-faction checks
+    if factionIndex == 1  ; Forsworn
+        Return akTarget.IsInFaction(FacForsworn) || akTarget.IsInFaction(FacHagraven)
+    ElseIf factionIndex == 5  ; Vampire
+        Return akTarget.IsInFaction(FacVampire) || akTarget.IsInFaction(FacVampireThrall)
+    Else
+        Return akTarget.IsInFaction(factionArray[factionIndex])
+    EndIf
+EndFunction
 
-Function QuestNameTrue(Actor akTarget, String newFirstName, String newLastName)
+Function ProcessFactionRename(Actor akTarget, GlobalVariable settingGV, String newFirstName, String newLastName, Bool useQuestName)
+    Int setting = settingGV.GetValue() as int
+    If setting == 0
+        Return
+    EndIf
+    
+    String finalName = BuildActorName(akTarget, newFirstName, newLastName, setting)
+    akTarget.SetDisplayName(finalName, useQuestName)
+EndFunction
 
-	ActorBase TargetRef = akTarget.GetLeveledActorBase()
-
-	IF akTarget.IsInFaction(FacBandit)
-		Int RNBanditGV = RNBandit.GetValue() as int
-		If RNBanditGV == 0
-			Return
-		ElseIf RNBanditGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNBanditGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacForsworn) || akTarget.IsInFaction(FacHagraven)
-		Int RNForswornGV = RNForsworn.GetValue() as int
-		If RNForswornGV == 0
-			Return
-		ElseIf RNForswornGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNForswornGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacGuard)
-		Int RNGuardGV = RNGuard.GetValue() as int
-		If RNGuardGV == 0
-			Return
-		ElseIf RNGuardGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNGuardGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacStendarr)
-		Int RNStendarrGV = RNStendarr.GetValue() as int
-		If RNStendarrGV == 0
-			Return
-		ElseIf RNStendarrGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNStendarrGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacThalmor)
-		Int RNThalmorGV = RNThalmor.GetValue() as int
-		If RNThalmorGV == 0
-			Return
-		ElseIf RNThalmorGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNThalmorGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacVampire) || akTarget.IsInFaction(FacVampireThrall)
-		Int RNVampireGV = RNVampire.GetValue() as int
-		If RNVampireGV == 0
-			Return
-		ElseIf RNVampireGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNVampireGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacDragon)
-		Int RNDragonGV = RNDragon.GetValue() as int
-		; Debug.Trace("RNDragonGV = " + RNDragonGV)
-		If RNDragonGV == 0
-			Return
-		ElseIf RNDragonGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNDragonGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacDragonPriest)
-		Int RNDragonPriestGV = RNDragonPriest.GetValue() as int
-		; Debug.Trace("RNDragonPriestGV = " + RNDragonPriestGV)
-		If RNDragonPriestGV == 0
-			Return
-		ElseIf RNDragonPriestGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNDragonPriestGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacDaedra)
-		Int RNDaedraGV = RNDaedra.GetValue() as int
-		; Debug.Trace("RNDaedraGV = " + RNDaedraGV)
-		If RNDaedraGV == 0
-			Return
-		ElseIf RNDaedraGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNDaedraGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-	IF akTarget.IsInFaction(FacCreature)
-		Int RNCreatureGV = RNCreature.GetValue() as int
-		; Debug.Trace("RNCreatureGV = " + RNCreatureGV)
-		If RNCreatureGV == 0
-			Return
-		ElseIf RNCreatureGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNCreatureGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-	Endif
-
-		Int RNOtherGV = RNOther.GetValue() as int
-		If RNOtherGV == 0
-			Return
-		ElseIf RNOtherGV == 1
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName, True)
-			Return
-		ElseIf RNOtherGV == 2
-			String oldname = TargetRef.GetName()
-			string newName = newFirstName
-			if (RNDoLastNames.GetValue() == 1 && newLastName != "")
-				newName += " " + newLastName
-			endif
-			if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
-				newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
-			Else
-				StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
-			EndIf
-			akTarget.SetDisplayName(newName + ", " + oldname, True)
-			Return
-		Endif	
-
+String Function BuildActorName(Actor akTarget, String newFirstName, String newLastName, Int setting)
+    String newName = newFirstName
+    
+    ; Add last name if enabled
+    if (RNDoLastNames.GetValue() == 1 && newLastName != "")
+        newName += " " + newLastName
+    endif
+    
+    ; Check for cached name
+    if (StorageUtil.HasStringValue(akTarget, "RNE_Name"))
+        newName = StorageUtil.GetStringValue(akTarget, "RNE_Name")
+    Else
+        StorageUtil.SetStringValue(akTarget, "RNE_Name", newName)
+    EndIf
+    
+    ; Add original name if setting is 2
+    If setting == 2
+        ActorBase TargetRef = akTarget.GetLeveledActorBase()
+        String oldname = TargetRef.GetName()
+        newName += ", " + oldname
+    EndIf
+    
+    Return newName
 EndFunction
